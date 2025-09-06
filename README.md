@@ -37,9 +37,25 @@ Into clean, optimized migrations:
 
 ## 🚀 Installation
 
+### From PyPI (Recommended)
 ```bash
-cd tools/migration-squash
+pip install migration-squash
+```
+
+### From Source (Development)
+```bash
+git clone https://github.com/your-username/migration-squash.git
+cd migration-squash
+
+# Option 1: Install as global tool (like npm link)
+uv tool install --editable .
+
+# Option 2: Development environment
 uv sync
+uv run migration-squash analyze /path/to/migrations
+
+# Option 3: Editable install in current environment
+uv pip install --editable .
 ```
 
 ## 📖 Usage
@@ -47,25 +63,25 @@ uv sync
 ### Basic Workflow
 ```bash
 # 1. Analyze your migrations (safe, read-only)
-uv run python -m src.cli analyze ../../src/database/migrations
+migration-squash analyze /path/to/migrations
 
 # 2. Generate squashed migrations
-uv run python -m src.cli squash ../../src/database/migrations --output-dir ./output
+migration-squash squash /path/to/migrations --output-dir ./output
 
 # 3. Validate with database comparison  
-uv run python -m src.cli compare ../../src/database/migrations ./output
+migration-squash compare /path/to/migrations ./output
 ```
 
 ### Advanced Usage
 ```bash
 # Preview changes without writing files
-uv run python -m src.cli squash /path/to/migrations --dry-run
+migration-squash squash /path/to/migrations --dry-run
 
 # Keep data migrations separate from schema
-uv run python -m src.cli squash /path/to/migrations --keep-data --backup
+migration-squash squash /path/to/migrations --keep-data --backup
 
 # Save detailed comparison report
-uv run python -m src.cli compare original/ squashed/ --save-report report.json
+migration-squash compare original/ squashed/ --save-report report.json
 ```
 
 ## 🛠️ Commands
@@ -156,4 +172,4 @@ Built with modern Python practices:
 
 ## 📄 License
 
-Part of the MCP-Hive project.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

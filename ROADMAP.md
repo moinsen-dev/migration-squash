@@ -52,11 +52,11 @@ class PostgreSQLAdapter(DatabaseAdapter):
 ```
 
 #### 2.2 PostgreSQL-Specific Features
-- **Data Type Mapping**: 
+- **Data Type Mapping**:
   ```python
   SQLITE_TO_POSTGRESQL = {
       'TEXT': 'VARCHAR',
-      'INTEGER': 'INTEGER', 
+      'INTEGER': 'INTEGER',
       'REAL': 'DECIMAL',
       'BLOB': 'BYTEA'
   }
@@ -65,7 +65,7 @@ class PostgreSQLAdapter(DatabaseAdapter):
 - **Schema Introspection**:
   ```sql
   -- PostgreSQL schema queries
-  SELECT * FROM information_schema.tables 
+  SELECT * FROM information_schema.tables
   SELECT * FROM information_schema.columns
   SELECT * FROM information_schema.table_constraints
   ```
@@ -162,12 +162,12 @@ databases:
     adapter: "sqlite"
     connection_template: "sqlite:///{path}"
     backup_patterns: ["*_backup", "*_temp", "*_old"]
-  
+
   postgresql:
     adapter: "postgresql"
     connection_template: "postgresql://{user}:{pass}@{host}:{port}/{db}"
     backup_patterns: ["*_backup", "*_bak", "*_archive"]
-    
+
   mysql:
     adapter: "mysql"
     connection_template: "mysql://{user}:{pass}@{host}:{port}/{db}"
@@ -202,7 +202,7 @@ uv run python -m src.cli convert \
 
 ### Phase 1 Success Criteria
 - [ ] Clean separation of SQLite-specific code
-- [ ] Abstract base adapter with clear interface  
+- [ ] Abstract base adapter with clear interface
 - [ ] All existing SQLite functionality preserved
 - [ ] 100% backward compatibility
 
@@ -233,7 +233,7 @@ uv run python -m src.cli convert \
 4. **Set up testing framework** with Docker containers
 
 ### Development Priorities
-1. **Backward Compatibility**: Never break existing SQLite functionality  
+1. **Backward Compatibility**: Never break existing SQLite functionality
 2. **Performance**: Multi-database support shouldn't slow down operations
 3. **Maintainability**: Clean architecture that's easy to extend
 4. **Documentation**: Comprehensive guides for each database
@@ -242,7 +242,7 @@ uv run python -m src.cli convert \
 
 ### Contribution Areas
 - **Database Adapters**: Implement support for new databases
-- **Testing**: Create comprehensive test scenarios  
+- **Testing**: Create comprehensive test scenarios
 - **Documentation**: Database-specific guides and examples
 - **Performance**: Optimize for large migration histories
 
@@ -261,7 +261,7 @@ uv run python -m src.cli convert \
 - [Django Database Backends](https://docs.djangoproject.com/en/4.2/ref/databases/) - Multi-database patterns
 
 ### Database-Specific Migration Tools
-- **PostgreSQL**: `pg_dump`, `pg_migrate`  
+- **PostgreSQL**: `pg_dump`, `pg_migrate`
 - **MySQL**: `mysqldump`, `migrate`
 - **SQLite**: Current implementation reference
 
@@ -271,6 +271,6 @@ uv run python -m src.cli convert \
 
 This roadmap is designed to be **evolutionary**, not revolutionary. Each phase builds on the previous one while maintaining full backward compatibility. The goal is to create a robust, extensible tool that becomes the go-to solution for database migration optimization across the ecosystem.
 
-**Last Updated**: January 2025  
-**Status**: Planning Phase  
+**Last Updated**: September 2025
+**Status**: Planning Phase
 **Next Review**: After Phase 1 completion

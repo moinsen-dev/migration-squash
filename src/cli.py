@@ -1,6 +1,7 @@
 """Command-line interface for migration squashing tool."""
 
 import sys
+import subprocess
 from pathlib import Path
 from typing import Optional
 import click
@@ -16,13 +17,14 @@ from .squasher import MigrationSquasher, SquashConfig
 from .sqlite_patterns import SQLitePatternDetector, SQLiteOptimizer
 from .validator import MigrationValidator
 from .database_comparator import DatabaseComparator
+from .dump_baseline import DumpBaselineGenerator, SmartDumpCleaner
 
 
 console = Console()
 
 
 @click.group()
-@click.version_option(version="0.1.0")
+@click.version_option(version="0.2.0")
 def cli():
     """Intelligent SQL migration squashing tool for SQLite databases.
     
@@ -204,6 +206,103 @@ def compare(original_dir: Path, squashed_dir: Path, save_report: Optional[Path])
             
     except Exception as e:
         console.print(f"❌ Error comparing databases: [red]{e}[/red]")
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument('migrations_dir', type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.option('--output-file', '-o', type=click.Path(path_type=Path),
+              help='Output file for baseline migration (defaults to baseline_TIMESTAMP.sql)')
+@click.option('--include-data', is_flag=True,
+              help='Include INSERT statements for data in the baseline')
+@click.option('--no-clean', is_flag=True,
+              help='Skip cleaning and optimization of the dump output')
+@click.option('--organize', is_flag=True,
+              help='Organize schema elements by dependency order')
+def dump_baseline(migrations_dir: Path, output_file: Optional[Path],
+                 include_data: bool, no_clean: bool, organize: bool):
+    """Generate a new baseline migration from SQL dump.
+
+    This command applies all existing migrations to a temporary database,
+    then uses SQLite's dump functionality to extract the final schema
+    as a single baseline migration file.
+
+    Perfect for consolidating many migrations (15-50+) into a clean baseline
+    when starting a new development phase or archiving old migrations.
+
+    Example:
+        migration-squash dump-baseline ./migrations -o ./baseline.sql
+    """
+    console.print("🎯 [bold]Generating Baseline Migration from SQL Dump[/bold]")
+    console.print(f"📁 Source migrations: [blue]{migrations_dir}[/blue]")
+
+    if output_file:
+        console.print(f"📄 Output file: [green]{output_file}[/green]")
+
+    if include_data:
+        console.print("💾 [yellow]Including data (INSERT statements) in baseline[/yellow]")
+
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console
+        ) as progress:
+            task = progress.add_task("Analyzing existing migrations...", total=None)
+
+            # Initialize generator
+            generator = DumpBaselineGenerator()
+
+            # Generate baseline
+            progress.update(task, description="Applying migrations to temporary database...")
+            clean_dump = not no_clean
+
+            dump_sql, output_path = generator.generate_baseline(
+                migrations_dir,
+                output_file,
+                include_data,
+                clean_dump
+            )
+
+            # Additional organization if requested
+            if organize and clean_dump:
+                progress.update(task, description="Organizing schema elements...")
+                cleaner = SmartDumpCleaner()
+                organized_sql = cleaner.clean_and_organize(dump_sql)
+                output_path.write_text(organized_sql, encoding='utf-8')
+                dump_sql = organized_sql
+
+            progress.update(task, description="Baseline generated successfully!")
+
+        # Display summary
+        lines = dump_sql.count('\n') + 1
+        file_size = len(dump_sql.encode('utf-8'))
+
+        summary = Panel(
+            f"📄 File: [bold green]{output_path}[/bold green]\n"
+            f"📏 Lines: {lines:,}\n"
+            f"📦 Size: {file_size:,} bytes\n"
+            f"🗂️ Type: {'Schema + Data' if include_data else 'Schema Only'}",
+            title="✅ Baseline Migration Generated",
+            border_style="green"
+        )
+        console.print(summary)
+
+        # Show preview
+        console.print("\n[dim]Preview (first 10 lines):[/dim]")
+        preview_lines = dump_sql.split('\n')[:10]
+        for line in preview_lines:
+            console.print(f"  [dim]{line}[/dim]")
+
+        if lines > 10:
+            console.print(f"  [dim]... ({lines - 10} more lines)[/dim]")
+
+    except subprocess.CalledProcessError as e:
+        console.print(f"❌ Error running sqlite3 command: [red]{e}[/red]")
+        console.print("[yellow]Make sure sqlite3 is installed and available in PATH[/yellow]")
+        sys.exit(1)
+    except Exception as e:
+        console.print(f"❌ Error generating baseline: [red]{e}[/red]")
         sys.exit(1)
 
 

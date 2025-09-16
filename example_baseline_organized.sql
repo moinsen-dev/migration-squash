@@ -1,0 +1,12 @@
+-- Tables
+CREATE TABLE users ( id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, email TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP , last_login TIMESTAMP, is_active BOOLEAN DEFAULT 1);
+CREATE TABLE sqlite_sequence(name,seq);
+CREATE TABLE projects ( id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT, owner_id INTEGER NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, is_public BOOLEAN DEFAULT 0, updated_at TIMESTAMP, FOREIGN KEY (owner_id) REFERENCES users(id) );
+CREATE TABLE tasks ( id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, title TEXT NOT NULL, description TEXT, status TEXT DEFAULT 'pending', assigned_to INTEGER, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (project_id) REFERENCES projects(id), FOREIGN KEY (assigned_to) REFERENCES users(id) );
+
+-- Indexes
+CREATE INDEX idx_tasks_project ON tasks(project_id);
+CREATE INDEX idx_tasks_assigned ON tasks(assigned_to);
+
+-- Triggers
+CREATE TRIGGER update_projects_timestamp AFTER UPDATE ON projects BEGIN UPDATE projects SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;

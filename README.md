@@ -22,6 +22,7 @@ Into clean, optimized migrations:
 
 - **🔍 Smart Analysis**: Detects CREATE/DROP cycles, redundant ALTERs, and optimization opportunities
 - **🏗️ SQLite Optimized**: Handles backup tables, virtual tables (FTS), triggers, and SQLite-specific patterns
+- **📸 SQL Dump Baseline**: Generate clean baseline migrations from SQL dumps (v0.2.0+)
 - **✅ Database Validation**: Creates actual test databases to verify schema correctness
 - **📊 Advanced Comparison**: Element-by-element schema comparison with detailed reporting
 - **🎨 Rich CLI**: Beautiful command-line interface with progress indicators and colorized output
@@ -89,7 +90,7 @@ migration-squash compare original/ squashed/ --save-report report.json
 ### `analyze` - Migration Analysis
 Shows optimization opportunities and patterns detected:
 - Tables with CREATE/DROP cycles
-- Redundant ALTER operations  
+- Redundant ALTER operations
 - SQLite backup table patterns
 - Virtual table and trigger detection
 
@@ -100,7 +101,28 @@ Creates clean, consolidated migration files:
 - Preserves dependency ordering (tables → virtual tables → triggers)
 - Handles SQLite-specific patterns
 
-### `compare` - Database Schema Validation  
+### `dump-baseline` - Generate Baseline from SQL Dump (v0.2.0+)
+**Create a single baseline migration from your entire migration history:**
+- Uses SQLite's native `.dump` command for accurate schema extraction
+- Perfect for consolidating 15-50+ migrations into one baseline
+- Supports schema-only or schema+data dumps
+- Intelligent cleaning and organization of dump output
+
+```bash
+# Basic usage - schema only
+migration-squash dump-baseline /path/to/migrations
+
+# Include data in baseline
+migration-squash dump-baseline /path/to/migrations --include-data
+
+# Specify output file
+migration-squash dump-baseline /path/to/migrations -o baseline.sql
+
+# Organize by dependency order
+migration-squash dump-baseline /path/to/migrations --organize
+```
+
+### `compare` - Database Schema Validation
 **Advanced validation using real databases:**
 - Creates SQLite databases (`original.db` and `squashed.db`) in the output directory for inspection
 - Applies all original migrations vs. single squashed migration

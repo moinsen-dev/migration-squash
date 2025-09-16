@@ -1,0 +1,300 @@
+"""Tests for SQL dump baseline generation functionality."""
+
+import pytest
+import tempfile
+import shutil
+from pathlib import Path
+import sqlite3
+
+from src.dump_baseline import DumpBaselineGenerator, SmartDumpCleaner
+
+
+class TestDumpBaselineGenerator:
+    """Test suite for DumpBaselineGenerator."""
+
+    @pytest.fixture
+    def temp_dir(self):
+        """Create a temporary directory for test files."""
+        temp_dir = tempfile.mkdtemp()
+        yield Path(temp_dir)
+        shutil.rmtree(temp_dir)
+
+    @pytest.fixture
+    def sample_migrations(self, temp_dir):
+        """Create sample migration files."""
+        migrations_dir = temp_dir / "migrations"
+        migrations_dir.mkdir()
+
+        # Migration 1: Create initial tables
+        migration1 = migrations_dir / "001_initial.sql"
+        migration1.write_text("""
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL
+);
+
+CREATE TABLE posts (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER,
+    title TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+        """)
+
+        # Migration 2: Add columns
+        migration2 = migrations_dir / "002_add_columns.sql"
+        migration2.write_text("""
+ALTER TABLE users ADD COLUMN email TEXT;
+ALTER TABLE users ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE posts ADD COLUMN content TEXT;
+        """)
+
+        # Migration 3: Create indexes
+        migration3 = migrations_dir / "003_add_indexes.sql"
+        migration3.write_text("""
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_posts_user_id ON posts(user_id);
+        """)
+
+        # Migration 4: Add trigger
+        migration4 = migrations_dir / "004_add_trigger.sql"
+        migration4.write_text("""
+CREATE TRIGGER update_users_timestamp
+AFTER UPDATE ON users
+BEGIN
+    UPDATE users SET created_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+END;
+        """)
+
+        return migrations_dir
+
+    def test_generate_baseline_basic(self, sample_migrations, temp_dir):
+        """Test basic baseline generation without data."""
+        generator = DumpBaselineGenerator()
+
+        output_file = temp_dir / "baseline.sql"
+        dump_sql, output_path = generator.generate_baseline(
+            sample_migrations,
+            output_file,
+            include_data=False,
+            clean_dump=True
+        )
+
+        assert output_path == output_file
+        assert output_file.exists()
+        assert "CREATE TABLE users" in dump_sql
+        assert "CREATE TABLE posts" in dump_sql
+        assert "CREATE INDEX" in dump_sql
+        assert "CREATE TRIGGER" in dump_sql
+
+    def test_generate_baseline_with_data(self, sample_migrations, temp_dir):
+        """Test baseline generation with data included."""
+        # Add a migration with data
+        data_migration = sample_migrations / "005_data.sql"
+        data_migration.write_text("""
+INSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com');
+INSERT INTO users (name, email) VALUES ('Bob', 'bob@example.com');
+INSERT INTO posts (user_id, title, content) VALUES (1, 'First Post', 'Hello World');
+        """)
+
+        generator = DumpBaselineGenerator()
+
+        output_file = temp_dir / "baseline_with_data.sql"
+        dump_sql, output_path = generator.generate_baseline(
+            sample_migrations,
+            output_file,
+            include_data=True,
+            clean_dump=True
+        )
+
+        assert output_file.exists()
+        assert "INSERT INTO" in dump_sql
+        assert "Alice" in dump_sql
+        assert "First Post" in dump_sql
+
+    def test_generate_baseline_auto_filename(self, sample_migrations):
+        """Test baseline generation with automatic filename."""
+        generator = DumpBaselineGenerator()
+
+        dump_sql, output_path = generator.generate_baseline(
+            sample_migrations,
+            output_file=None,
+            include_data=False,
+            clean_dump=True
+        )
+
+        assert output_path.parent == sample_migrations
+        assert output_path.name.startswith("baseline_")
+        assert output_path.suffix == ".sql"
+        assert output_path.exists()
+
+    def test_clean_dump_functionality(self, sample_migrations, temp_dir):
+        """Test dump cleaning functionality."""
+        generator = DumpBaselineGenerator()
+
+        # Generate without cleaning
+        output_no_clean = temp_dir / "baseline_no_clean.sql"
+        dump_no_clean, _ = generator.generate_baseline(
+            sample_migrations,
+            output_no_clean,
+            include_data=False,
+            clean_dump=False
+        )
+
+        # Generate with cleaning
+        output_clean = temp_dir / "baseline_clean.sql"
+        dump_clean, _ = generator.generate_baseline(
+            sample_migrations,
+            output_clean,
+            include_data=False,
+            clean_dump=True
+        )
+
+        # Clean version should have metadata header
+        assert "Migration Baseline Generated by migration-squash" in dump_clean
+        assert "Original migrations:" in dump_clean
+
+    def test_complex_schema_handling(self, temp_dir):
+        """Test handling of complex schema with virtual tables."""
+        migrations_dir = temp_dir / "complex_migrations"
+        migrations_dir.mkdir()
+
+        # Create migration with virtual table
+        migration1 = migrations_dir / "001_fts.sql"
+        migration1.write_text("""
+CREATE TABLE documents (
+    id INTEGER PRIMARY KEY,
+    title TEXT,
+    content TEXT
+);
+
+CREATE VIRTUAL TABLE documents_fts USING fts5(
+    title, content, content=documents
+);
+
+CREATE TRIGGER documents_ai AFTER INSERT ON documents BEGIN
+    INSERT INTO documents_fts(title, content) VALUES (NEW.title, NEW.content);
+END;
+        """)
+
+        generator = DumpBaselineGenerator()
+        dump_sql, output_path = generator.generate_baseline(
+            migrations_dir,
+            temp_dir / "complex_baseline.sql",
+            include_data=False,
+            clean_dump=True
+        )
+
+        assert "CREATE VIRTUAL TABLE" in dump_sql
+        assert "fts5" in dump_sql
+        assert "CREATE TRIGGER documents_ai" in dump_sql
+
+    def test_apply_migrations_order(self, temp_dir):
+        """Test that migrations are applied in correct order."""
+        migrations_dir = temp_dir / "ordered_migrations"
+        migrations_dir.mkdir()
+
+        # Create migrations that depend on order
+        (migrations_dir / "001_base.sql").write_text("CREATE TABLE base (id INTEGER PRIMARY KEY);")
+        (migrations_dir / "002_dependent.sql").write_text("CREATE TABLE dependent (base_id INTEGER REFERENCES base(id));")
+        (migrations_dir / "003_alter.sql").write_text("ALTER TABLE base ADD COLUMN name TEXT;")
+
+        generator = DumpBaselineGenerator()
+        dump_sql, _ = generator.generate_baseline(migrations_dir)
+
+        # Verify the final schema includes all changes
+        assert "CREATE TABLE base" in dump_sql
+        assert "CREATE TABLE dependent" in dump_sql
+        # The dump should show the final state with the added column
+
+
+class TestSmartDumpCleaner:
+    """Test suite for SmartDumpCleaner."""
+
+    def test_clean_and_organize_basic(self):
+        """Test basic cleaning and organization of dump."""
+        cleaner = SmartDumpCleaner()
+
+        dump_sql = """
+CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);
+CREATE INDEX idx_users_name ON users(name);
+CREATE TRIGGER users_log AFTER INSERT ON users BEGIN SELECT 1; END;
+CREATE TABLE posts (id INTEGER PRIMARY KEY, user_id INTEGER);
+CREATE VIEW user_posts AS SELECT * FROM users JOIN posts;
+        """
+
+        organized = cleaner.clean_and_organize(dump_sql)
+
+        # Check organization order
+        lines = organized.split('\n')
+        table_section = None
+        index_section = None
+        view_section = None
+        trigger_section = None
+
+        for i, line in enumerate(lines):
+            if line == "-- Tables":
+                table_section = i
+            elif line == "-- Indexes":
+                index_section = i
+            elif line == "-- Views":
+                view_section = i
+            elif line == "-- Triggers":
+                trigger_section = i
+
+        # Verify correct ordering
+        assert table_section is not None
+        assert index_section is not None
+        assert view_section is not None
+        assert trigger_section is not None
+        assert table_section < index_section < view_section < trigger_section
+
+    def test_virtual_table_categorization(self):
+        """Test categorization of virtual tables."""
+        cleaner = SmartDumpCleaner()
+
+        dump_sql = """
+CREATE TABLE normal_table (id INTEGER);
+CREATE VIRTUAL TABLE fts_table USING fts5(content);
+CREATE INDEX idx_normal ON normal_table(id);
+        """
+
+        cleaner._parse_dump(dump_sql)
+
+        assert len(cleaner.schema_elements['tables']) == 1
+        assert len(cleaner.schema_elements['virtual_tables']) == 1
+        assert len(cleaner.schema_elements['indexes']) == 1
+        assert "normal_table" in cleaner.schema_elements['tables'][0]
+        assert "fts_table" in cleaner.schema_elements['virtual_tables'][0]
+
+    def test_multiline_statement_handling(self):
+        """Test handling of multi-line SQL statements."""
+        cleaner = SmartDumpCleaner()
+
+        dump_sql = """
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE
+);
+CREATE INDEX idx_email ON users(email);
+        """
+
+        organized = cleaner.clean_and_organize(dump_sql)
+
+        # Should properly handle multi-line CREATE TABLE
+        assert "CREATE TABLE users" in organized
+        assert "-- Tables" in organized
+        assert "-- Indexes" in organized
+
+    def test_empty_dump_handling(self):
+        """Test handling of empty or minimal dumps."""
+        cleaner = SmartDumpCleaner()
+
+        # Empty dump
+        result = cleaner.clean_and_organize("")
+        assert result == ""
+
+        # Only comments
+        result = cleaner.clean_and_organize("-- Just a comment\n-- Another comment")
+        assert result == ""

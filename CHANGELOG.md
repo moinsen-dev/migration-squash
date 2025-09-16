@@ -7,27 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-01-16
+
 ### Added
-- Initial standalone release of migration-squash tool
-- Smart SQL migration analysis and optimization
-- SQLite-specific pattern detection and handling
-- Advanced database schema validation and comparison
-- Rich CLI interface with progress indicators
-- Comprehensive test suite and validation
+- **New `dump-baseline` command** - Generate baseline migrations from SQL dump
+  - Creates a single consolidated migration from existing migration history
+  - Uses SQLite's native dump functionality for accurate schema extraction
+  - Perfect for projects with 15-50+ migrations that need consolidation
+  - Supports schema-only or schema+data dumps
+  - Intelligent dump cleaning and optimization
+  - Automatic organization by dependency order (tables → indexes → views → virtual tables → triggers)
 
 ### Features
-- **analyze** command for migration analysis and optimization detection
-- **squash** command for generating clean, consolidated migrations
-- **compare** command for advanced database schema validation
-- **validate** command for basic schema comparison
-- Support for CREATE/DROP cycle detection and optimization
-- Smart ALTER statement merging into CREATE statements
-- SQLite backup table pattern handling
-- Virtual table (FTS) and trigger preservation
-- Dependency ordering preservation
-- Dry-run mode for safe preview of changes
-- Backup creation for original migrations
-- JSON report generation for detailed analysis
+- Generate baseline migrations using `migration-squash dump-baseline`
+- Option to include or exclude data (INSERT statements)
+- Smart dump cleaning to remove unnecessary SQLite pragmas
+- Organize schema elements by dependency order for better readability
+- Automatic timestamped filenames or custom output paths
+- Full support for complex SQLite features (FTS, triggers, views)
+- Comprehensive test coverage for baseline generation
+
+### Improvements
+- Updated CLI version to 0.2.0
+- Enhanced documentation with dump-baseline examples
 
 ## [0.1.0] - 2025-01-15
 

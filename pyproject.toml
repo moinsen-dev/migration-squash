@@ -1,6 +1,6 @@
 [project]
 name = "migration-squash"
-version = "0.1.0"
+version = "0.2.0"
 description = "Intelligent SQL migration squashing and optimization tool for SQLite databases"
 readme = "README.md"
 authors = [{ name = "Migration Squash Contributors" }]
